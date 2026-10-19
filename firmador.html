@@ -257,6 +257,7 @@ async function loadPdfFile(file){
   currentPageIndex = pdfDocProxy.numPages - 1; // arranca en la última página
   await renderPage(currentPageIndex);
   placeCard.style.display = 'block';
+  placeMarker();
 }
 
 pdfInput.addEventListener('change', (e) => loadPdfFile(e.target.files[0]));
@@ -279,6 +280,7 @@ dropPdf.addEventListener('drop', (e) => {
 async function renderPage(pageIndex){
   const page = await pdfDocProxy.getPage(pageIndex + 1); // pdf.js es 1-based
   const viewport = page.getViewport({ scale: 1 });
+  pageW = viewport.width; pageH = viewport.height;
   const scale = Math.min(560 / viewport.width, 1.4);
   const scaledViewport = page.getViewport({ scale });
 
@@ -304,14 +306,23 @@ nextPageBtn.addEventListener('click', async () => {
   if (currentPageIndex < pdfDocProxy.numPages - 1) { currentPageIndex++; await renderPage(currentPageIndex); }
 });
 
+let pageW = 612, pageH = 792;   // tamaño real de la página en puntos PDF
 function placeMarker(){
   if (!stampPoint) return;
-  const x = stampPoint.xRatio * canvas.clientWidth;
-  const y = stampPoint.yRatio * canvas.clientHeight;
+  // Misma geometría que usa la firma real: sello de 172x56 pt escalado al ancho de página y ajustado a los bordes
+  const sc = Math.min(Math.max(pageW / 612, 0.6), 3);
+  const C = 172 * sc, E = 56 * sc, m = 6 * sc;
+  const k = canvas.clientWidth / pageW;
+  const left = Math.min(Math.max(stampPoint.xRatio * pageW - C / 2, m), pageW - C - m);
+  const top  = Math.min(Math.max(stampPoint.yRatio * pageH - E / 2, m), pageH - E - m);
   marker.style.display = 'flex';
-  marker.style.left = (canvas.offsetLeft + x - 110) + 'px';
-  marker.style.top = (canvas.offsetTop + y - 28) + 'px';
+  marker.style.width  = (C * k) + 'px';
+  marker.style.height = (E * k) + 'px';
+  marker.style.fontSize = Math.max(0.5, 0.65 * k / 0.9).toFixed(2) + 'rem';
+  marker.style.left = (canvas.offsetLeft + left * k) + 'px';
+  marker.style.top  = (canvas.offsetTop + top * k) + 'px';
 }
+window.addEventListener('resize', placeMarker);
 
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
